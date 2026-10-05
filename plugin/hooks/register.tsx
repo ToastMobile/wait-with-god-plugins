@@ -23,11 +23,14 @@ import {
 const today = atom({ plugin: 'wait-with-god', key: 'today' } as const, null)
 const isRevealed = atom({ plugin: 'wait-with-god', key: 'isRevealed' } as const, false)
 const hiddenUntil = atom({ plugin: 'wait-with-god', key: 'hiddenUntil' } as const, null)
+const shareResult = atom({ plugin: 'wait-with-god', key: 'shareResult' } as const, null)
+
+const SHARE_LABEL = { copied: 'Copied', failed: "Couldn't copy" } as const
 
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.4'
+const VERSION = '0.3.5'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -313,6 +316,7 @@ export const register: Register = on => {
     const stage = stageFor(verse.views)
     const revealed = stage === 'Read' || (await read($, isRevealed))
     const shown = revealed ? verse.text : mask(verse.text, verse.views)
+    const shareState = await read($, shareResult)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
@@ -349,12 +353,14 @@ export const register: Register = on => {
             {stage === 'Check' && verse.isMastered && <Text dimColor>✓ mastered</Text>}
             <Button
               key="share"
-              label="Share"
+              label={shareState ? SHARE_LABEL[shareState] : 'Share'}
               hotkey="s"
-              dimColor
+              dimColor={!shareState}
               onPress={async press => {
                 const copied = await $.ui.copy({ text: shared(verse.ref, verse.text), surface: press.surface })
-                $.ui.toast(copied.isCopied ? `Copied ${verse.ref} and a link to share.` : "Couldn't reach the clipboard.")
+                // The button says what happened for a moment, then goes back to Share.
+                await update($, shareResult, () => (copied.isCopied ? 'copied' : 'failed'))
+                $.clock.after(2_000, () => void update($, shareResult, () => null))
               }}
             />
           </Box>

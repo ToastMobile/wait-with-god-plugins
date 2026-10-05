@@ -174,6 +174,18 @@ describe('band', () => {
     }
     expect(copied).toEqual([1, 2].map(() => `“${TEXT}” — ${VERSE.ref} (BSB)\n\nhttps://waitwithgod.com`))
   })
+
+  test('Share says Copied for a moment', async ($, on) => {
+    const { clock } = world(on)
+    await turns($, 1)
+    const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
+    const label = async () => (await busy.find({ key: 'share' }))?.props.label
+    expect(await label()).toBe('Share')
+    await busy.press({ key: 'share' })
+    expect(await label()).toBe('Copied')
+    await clock.advance(2_000)
+    expect(await label()).toBe('Share')
+  })
 })
 
 describe('/wait', () => {
@@ -228,7 +240,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.4', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.5', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)

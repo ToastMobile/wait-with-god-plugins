@@ -37,6 +37,8 @@ declare module 'claude-code' {
       isRevealed: boolean
       /** When `/wait hide` runs out (ms since epoch), or null when shown. */
       hiddenUntil: number | null
+      /** What the last press of Share did, shown on the button for a moment; null at rest. */
+      shareResult: 'copied' | 'failed' | null
     }
   }
 }
