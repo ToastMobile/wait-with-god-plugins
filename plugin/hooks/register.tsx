@@ -27,7 +27,7 @@ const hiddenUntil = atom({ plugin: 'wait-with-god', key: 'hiddenUntil' } as cons
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.3'
+const VERSION = '0.3.4'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -320,7 +320,7 @@ export const register: Register = on => {
           <Link href={SITE}>Wait with God</Link> · {verse.ref} (BSB) ·{' '}
           {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}
         </Text>
-        <Text wrap="wrap" italic={!revealed}>
+        <Text wrap="wrap">
           {shown}
         </Text>
         <Box flexDirection="row" justifyContent="space-between" marginTop={1}>
