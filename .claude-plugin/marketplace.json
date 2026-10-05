@@ -1,0 +1,15 @@
+{
+  "name": "wait-with-god",
+  "description": "Scripture memorization for the time you spend waiting on AI.",
+  "owner": {
+    "name": "Toast Mobile",
+    "email": "tobey@toastmobile.com"
+  },
+  "plugins": [
+    {
+      "name": "wait-with-god",
+      "source": "./plugin",
+      "description": "Turn AI waiting time into Scripture time: one BSB verse a day, shown while Claude works, a little more hidden each time."
+    }
+  ]
+}
