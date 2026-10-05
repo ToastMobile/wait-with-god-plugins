@@ -169,7 +169,7 @@ export function mask(text: string, views: number): string {
 }
 
 export function emptyStats(): WaitStats {
-  return { waitedMs: 0, waitedByDay: {}, reviews: {}, mastered: [], activeDays: [] }
+  return { waitedMs: 0, waitedByDay: {}, reviews: {}, looksByDay: {}, mastered: [], activeDays: [] }
 }
 
 function isWeekday(day: string): boolean {

@@ -20,6 +20,8 @@ export type WaitStats = {
   waitedByDay: Record<string, number>
   /** Times each reference has been shown. */
   reviews: Record<string, number>
+  /** Looks (waits that showed the verse), keyed by day. */
+  looksByDay: Record<string, number>
   /** References marked mastered. */
   mastered: string[]
   /** Days (YYYY-MM-DD) with at least one wait, most recent last. */

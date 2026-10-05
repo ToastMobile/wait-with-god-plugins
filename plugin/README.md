@@ -42,8 +42,10 @@ Your next Claude Code session has it.
 
 ## Privacy
 
-The only network request is for the verse text from bible.helloao.org, once per verse. Your stats stay in the
-plugin's own store under your Claude config directory. Nothing is sent anywhere else.
+The plugin fetches the verse text from bible.helloao.org, once per verse. Once a day it sends waitwithgod.com an
+anonymous usage count: the plugin version, the day you installed it, your streak and verses memorized, and your looks
+and minutes on your last day with it. Nothing in it identifies you. Your stats stay in the plugin's own store under
+your Claude config directory.
 
 ---
 

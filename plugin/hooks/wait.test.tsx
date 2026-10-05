@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
+import type { Engine, MockClock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { clockTime, hideUntil, mask, nextVerse, stageFor, verseFor, verseText, workdayStreak } from './verses'
@@ -17,13 +17,19 @@ const otherChapter = (url: string) =>
     chapter: { content: Array.from({ length: 180 }, (_, i) => ({ type: 'verse', number: i + 1, content: [`${url} ${i + 1}`] })) },
   })
 
-function world(on: On) {
-  mock.store(on)
+function world(on: On, store: Record<string, unknown> = {}, env: Record<string, string> = {}) {
+  mock.store(on, store)
+  mock.env(on, env)
   const clock = mock.clock(on, { now: NOON })
   const copied: string[] = []
-  on('http.fetch', (_$, e) => ({
-    value: { status: 200, ok: true, headers: {}, text: e.url === VERSE.url ? CHAPTER : otherChapter(e.url) },
-  }))
+  const posts: Record<string, unknown>[] = []
+  on('http.fetch', (_$, e) => {
+    if (e.init?.method === 'POST') {
+      posts.push(JSON.parse(e.init.body ?? '{}'))
+      return { value: { status: 204, ok: true, headers: {}, text: '' } }
+    }
+    return { value: { status: 200, ok: true, headers: {}, text: e.url === VERSE.url ? CHAPTER : otherChapter(e.url) } }
+  })
   on('ui.copy', (_$, e) => {
     copied.push(e.text)
     return { value: { isCopied: true } }
@@ -34,7 +40,10 @@ function world(on: On) {
     return <Box />
   })
   on('turn.start', (_$, e) => ({ turnId: e.turnId }))
-  return { clock, copied }
+  on('turn.complete', () => ({ text: '' }))
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  return { clock, copied, posts }
 }
 
 const band = (isWorking: boolean) => ({
@@ -48,6 +57,20 @@ async function turns($: Engine, n: number) {
 }
 
 const wait = async ($: Engine, args = '') => (await $.command.run({ command: 'wait', args } as never)).text ?? ''
+
+const DAY = 86_400_000
+const session = ($: Engine, isInteractive = true) =>
+  $.session.start({ cwd: '/work', surface: 'terminal', isInteractive } as never)
+
+/** Whole waits: the turn starts, Claude works for `ms`, the turn ends. */
+async function waits($: Engine, clock: MockClock, n: number, ms = 20_000) {
+  for (let i = 0; i < n; i++) {
+    const turnId = `w${Math.random()}`
+    await $.turn.start({ text: 'go', turnId })
+    await clock.advance(ms)
+    await $.turn.complete({ answer: '', durationMs: ms, isAborted: false, turnId, reason: 'answer' } as never)
+  }
+}
 
 describe('verses', () => {
   test('parses helloao verse content, poetry included', () => {
@@ -184,5 +207,57 @@ describe('/wait', () => {
   test('anything else shows the usage', async ($, on) => {
     world(on)
     expect(await wait($, 'nope')).toContain('/wait hide [today]')
+  })
+})
+
+describe('usage count', () => {
+  test('an install, then one active day at a time with the day before', async ($, on) => {
+    const { clock, posts } = world(on)
+    await session($)
+    await clock.advance(5_000)
+    expect(posts).toEqual([
+      { e: 'install', client: 'plugin', v: '0.3.0', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+    ])
+
+    await waits($, clock, 3)
+    await clock.advance(60_000)
+    const first = posts.filter(p => p.e === 'active')
+    expect(first).toHaveLength(1)
+    expect(first[0]).toMatchObject({ day: '2026-10-02', installed: '2026-10-02', mastered: 0 })
+    expect(first[0]!.prev_day).toBeUndefined()
+
+    await clock.set(NOON + DAY)
+    await waits($, clock, 2)
+    await clock.advance(60_000)
+    const active = posts.filter(p => p.e === 'active')
+    expect(active).toHaveLength(2)
+    expect(active[1]).toMatchObject({ day: '2026-10-03', prev_day: '2026-10-02', prev_looks: 3, prev_waited_s: 60 })
+    expect(posts.filter(p => p.e === 'install')).toHaveLength(1)
+  })
+
+  test('someone who used it before counting began is not a new install', async ($, on) => {
+    const stats = { waitedMs: 0, waitedByDay: {}, reviews: {}, looksByDay: {}, mastered: [], activeDays: ['2026-09-30'] }
+    const { clock, posts } = world(on, { stats })
+    await session($)
+    await waits($, clock, 1)
+    await clock.advance(60_000)
+    expect(posts.map(p => p.e)).toEqual(['active'])
+    expect(posts[0]).toMatchObject({ installed: '2026-09-30', prev_day: '2026-09-30' })
+  })
+
+  test('nothing is sent under DO_NOT_TRACK', async ($, on) => {
+    const { clock, posts } = world(on, {}, { DO_NOT_TRACK: '1' })
+    await session($)
+    await waits($, clock, 2)
+    await clock.advance(120_000)
+    expect(posts).toEqual([])
+  })
+
+  test('a -p run sends nothing', async ($, on) => {
+    const { clock, posts } = world(on)
+    await session($, false)
+    await waits($, clock, 2)
+    await clock.advance(120_000)
+    expect(posts).toEqual([])
   })
 })
