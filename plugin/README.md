@@ -19,12 +19,13 @@ Everyone sees the same verse on the same day (a 31-verse cycle), the same as the
 
 ## Install
 
-Needs Claude Code 2.1.287 or later (`claude update`). In Claude Code:
+Needs Claude Code 2.1.287 or later (`claude update`). In your terminal:
 
 ```
-/plugin marketplace add ToastMobile/wait-with-god-plugins
-/plugin install wait-with-god@wait-with-god
+claude plugin marketplace add ToastMobile/wait-with-god-plugins && claude plugin install wait-with-god@wait-with-god
 ```
+
+Your next Claude Code session has it.
 
 ## Commands
 
@@ -43,19 +44,6 @@ Needs Claude Code 2.1.287 or later (`claude update`). In Claude Code:
 
 The only network request is for the verse text from bible.helloao.org, once per verse. Your stats stay in the
 plugin's own store under your Claude config directory. Nothing is sent anywhere else.
-
-## Develop
-
-From a checkout:
-
-```
-claude --plugin-dir ./plugin
-claude plugin validate ./plugin
-claude plugin test ./plugin
-```
-
-Add the folder to `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` (`env` block) to load it in the desktop
-Code tab.
 
 ---
 
