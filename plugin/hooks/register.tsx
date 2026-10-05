@@ -25,7 +25,7 @@ const hiddenUntil = atom({ plugin: 'wait-with-god', key: 'hiddenUntil' } as cons
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.0'
+const VERSION = '0.3.1'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -102,11 +102,14 @@ async function setHidden($: EngineInterface, until: number | null) {
 }
 
 /**
- * The anonymous usage count the README describes: "install" once, then "active" once a day on the first look,
+ * The anonymous usage count the README describes: "install" once, then "active" for each day with a wait,
  * carrying the previous active day's totals. Nothing identifies the person; the install date is what retention
  * is counted by.
  */
-type Usage = { surface: string; lookedOn: string | null; isSending: boolean }
+type Usage = { surface: string; isSending: boolean }
+
+/** How far back an active day an earlier session didn't get to send is still sent. */
+const CATCH_UP_MS = 7 * 86_400_000
 
 async function post($: EngineInterface, event: Record<string, unknown>): Promise<boolean> {
   const res = await $.http.fetch(EVENTS, {
@@ -131,23 +134,28 @@ async function sendUsage($: EngineInterface, usage: Usage) {
       await $.store.set('installReported', true)
     }
 
-    const day = usage.lookedOn
-    if (!day || (await $.store.get('reportedDay')) === day) return
+    // Every active day not yet sent, oldest first, so a session that ended quickly is caught up by the next.
     const stats = await loadStats($)
-    const prev = stats.activeDays.filter(d => d < day).at(-1)
-    const event = {
-      e: 'active',
-      ...base,
-      day,
-      streak: workdayStreak(stats.activeDays, day),
-      mastered: stats.mastered.length,
-      ...(prev && {
-        prev_day: prev,
-        prev_looks: stats.looksByDay[prev] ?? 0,
-        prev_waited_s: Math.round((stats.waitedByDay[prev] ?? 0) / 1000),
-      }),
+    const reported = ((await $.store.get('reportedDay')) as string | undefined) ?? ''
+    const oldest = dayKey((await $.clock.now()) - CATCH_UP_MS)
+    for (const day of stats.activeDays) {
+      if (day <= reported || day < oldest || day < installed) continue
+      const prev = stats.activeDays.filter(d => d < day).at(-1)
+      const event = {
+        e: 'active',
+        ...base,
+        day,
+        streak: workdayStreak(stats.activeDays, day),
+        mastered: stats.mastered.length,
+        ...(prev && {
+          prev_day: prev,
+          prev_looks: stats.looksByDay[prev] ?? 0,
+          prev_waited_s: Math.round((stats.waitedByDay[prev] ?? 0) / 1000),
+        }),
+      }
+      if (!(await post($, event))) return
+      await $.store.set('reportedDay', day)
     }
-    if (await post($, event)) await $.store.set('reportedDay', day)
   } catch {
     // Offline: the next check tries again.
   } finally {
@@ -157,7 +165,9 @@ async function sendUsage($: EngineInterface, usage: Usage) {
 
 export const register: Register = on => {
   const startedAt = new Map<string, number>()
-  const usage: Usage = { surface: 'none', lookedOn: null, isSending: false }
+  const usage: Usage = { surface: 'none', isSending: false }
+  // Usage is only sent from a session a person is at, not a -p run.
+  let isInteractive = false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -173,15 +183,19 @@ export const register: Register = on => {
     } catch {
       // Offline: try again on the next turn.
     }
-    // Usage goes out on a timer, never in a turn's way, and only from a session a person is at.
+    // Usage goes out on timers, never in a turn's way, and only from a session a person is at.
     usage.surface = e.surface ?? 'none'
     if (e.isInteractive) {
       if (!(await $.store.get('installedOn'))) {
         const stats = await loadStats($)
-        // Someone who used the plugin before usage counting is not a new install.
         await $.store.set('installedOn', stats.activeDays[0] ?? dayKey(await $.clock.now()))
-        if (stats.activeDays.length > 0) await $.store.set('installReported', true)
+        // Someone who used the plugin before usage counting is not a new install, and their past days aren't sent.
+        if (stats.activeDays.length > 0) {
+          await $.store.set('installReported', true)
+          await $.store.set('reportedDay', stats.activeDays.at(-1))
+        }
       }
+      isInteractive = true
       $.clock.after(5_000, () => void sendUsage($, usage))
       $.clock.every(60_000, () => void sendUsage($, usage))
     }
@@ -197,7 +211,6 @@ export const register: Register = on => {
       if (verse) {
         await saveToday($, { ...verse, views: verse.views + 1 })
         await update($, isRevealed, () => false)
-        usage.lookedOn = verse.day
       }
     } catch {
       // Never hold up a turn over Scripture loading.
@@ -218,6 +231,8 @@ export const register: Register = on => {
       stats.looksByDay[verse.day] = (stats.looksByDay[verse.day] ?? 0) + 1
       if (!stats.activeDays.includes(verse.day)) stats.activeDays = [...stats.activeDays, verse.day].slice(-400)
       await $.store.set('stats', stats)
+      // A new active day goes out a moment later, even if the session ends soon after.
+      if (isInteractive) $.clock.after(1_000, () => void sendUsage($, usage))
     }
     return next(e)
   })

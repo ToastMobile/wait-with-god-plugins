@@ -216,7 +216,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.0', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.1', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)
@@ -243,6 +243,23 @@ describe('usage count', () => {
     await clock.advance(60_000)
     expect(posts.map(p => p.e)).toEqual(['active'])
     expect(posts[0]).toMatchObject({ installed: '2026-09-30', prev_day: '2026-09-30' })
+  })
+
+  test('an active day a short session missed goes out at the next start', async ($, on) => {
+    const stats = { waitedMs: 3000, waitedByDay: { '2026-10-01': 3000 }, reviews: {}, looksByDay: { '2026-10-01': 1 }, mastered: [], activeDays: ['2026-10-01'] }
+    const { clock, posts } = world(on, { stats, installedOn: '2026-10-01', installReported: true })
+    await session($)
+    await clock.advance(5_000)
+    expect(posts).toHaveLength(1)
+    expect(posts[0]).toMatchObject({ e: 'active', day: '2026-10-01', installed: '2026-10-01' })
+  })
+
+  test('the first reply of the day is reported within seconds', async ($, on) => {
+    const { clock, posts } = world(on)
+    await session($)
+    await waits($, clock, 1, 3_000)
+    await clock.advance(1_000)
+    expect(posts.map(p => p.e)).toEqual(['install', 'active'])
   })
 
   test('nothing is sent under DO_NOT_TRACK', async ($, on) => {
