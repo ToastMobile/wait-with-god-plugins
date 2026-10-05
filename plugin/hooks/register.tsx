@@ -27,7 +27,7 @@ const hiddenUntil = atom({ plugin: 'wait-with-god', key: 'hiddenUntil' } as cons
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.2'
+const VERSION = '0.3.3'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -317,13 +317,13 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
         <Text dimColor>
-          ✦ <Link href={SITE}>Wait with God</Link> · {verse.ref} (BSB) ·{' '}
+          <Link href={SITE}>Wait with God</Link> · {verse.ref} (BSB) ·{' '}
           {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}
         </Text>
         <Text wrap="wrap" italic={!revealed}>
           {shown}
         </Text>
-        <Box flexDirection="row" justifyContent="space-between">
+        <Box flexDirection="row" justifyContent="space-between" marginTop={1}>
           <Box flexDirection="row" gap={1}>
             {stage !== 'Read' && !revealed && (
               <Button key="reveal" label="Reveal" hotkey="r" onPress={() => update($, isRevealed, () => true)} />
@@ -358,10 +358,10 @@ export const register: Register = on => {
               }}
             />
           </Box>
-          <Box flexDirection="row" gap={1}>
-            <Text dimColor>From</Text>
-            <Link href={VERSLE} label="Versle" />
-          </Box>
+          <Text>
+            <Text dimColor>From </Text>
+            <Link href={VERSLE}>Versle</Link>
+          </Text>
         </Box>
       </Box>
     )

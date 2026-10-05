@@ -159,7 +159,7 @@ describe('band', () => {
     world(on)
     await turns($, 1)
     const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
-    expect(await busy.find({ type: 'Text', text: /^From$/ })).toBeDefined()
+    expect(await busy.find({ type: 'Text', text: /^From/ })).toBeDefined()
     expect(await busy.find({ type: 'Link' })).toBeDefined()
   })
 
@@ -228,7 +228,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.2', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.3', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)
