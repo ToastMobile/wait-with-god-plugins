@@ -12,6 +12,8 @@ import {
   minutes,
   nextVerse,
   quoted,
+  shared,
+  SITE,
   stageFor,
   verseFor,
   verseText,
@@ -25,7 +27,7 @@ const hiddenUntil = atom({ plugin: 'wait-with-god', key: 'hiddenUntil' } as cons
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.1'
+const VERSION = '0.3.2'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -315,7 +317,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
         <Text dimColor>
-          ✦ Wait with God · {verse.ref} (BSB) · {stage} · {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}
+          ✦ <Link href={SITE}>Wait with God</Link> · {verse.ref} (BSB) ·{' '}
+          {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}
         </Text>
         <Text wrap="wrap" italic={!revealed}>
           {shown}
@@ -344,9 +347,19 @@ export const register: Register = on => {
               />
             )}
             {stage === 'Check' && verse.isMastered && <Text dimColor>✓ mastered</Text>}
+            <Button
+              key="share"
+              label="Share"
+              hotkey="s"
+              dimColor
+              onPress={async press => {
+                const copied = await $.ui.copy({ text: shared(verse.ref, verse.text), surface: press.surface })
+                $.ui.toast(copied.isCopied ? `Copied ${verse.ref} and a link to share.` : "Couldn't reach the clipboard.")
+              }}
+            />
           </Box>
           <Box flexDirection="row" gap={1}>
-            <Text dimColor>Brought to you by</Text>
+            <Text dimColor>From</Text>
             <Link href={VERSLE} label="Versle" />
           </Box>
         </Box>

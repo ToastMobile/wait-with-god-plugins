@@ -141,14 +141,14 @@ describe('band', () => {
     world(on)
     await turns($, 7)
     const repeat = await $.ui.mount({ ...band(true), surface: 'terminal' })
-    expect(await repeat.find({ type: 'Text', text: /Repeat/ })).toBeDefined()
+    expect(await repeat.find({ type: 'Text', text: /Fill in the blanks/ })).toBeDefined()
     expect(await repeat.find({ type: 'Text', text: TEXT })).toBeUndefined()
     await repeat.press({ key: 'reveal' })
     expect(await repeat.find({ type: 'Text', text: TEXT })).toBeDefined()
 
     await turns($, 18)
     const check = await $.ui.mount({ ...band(true), surface: 'terminal' })
-    expect(await check.find({ type: 'Text', text: /Check/ })).toBeDefined()
+    expect(await check.find({ type: 'Text', text: /Say it from memory/ })).toBeDefined()
     await check.press({ key: 'got' })
     expect(await check.find({ type: 'Text', text: /mastered/ })).toBeDefined()
 
@@ -159,8 +159,20 @@ describe('band', () => {
     world(on)
     await turns($, 1)
     const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
-    expect(await busy.find({ type: 'Text', text: /Brought to you by/ })).toBeDefined()
+    expect(await busy.find({ type: 'Text', text: /^From$/ })).toBeDefined()
     expect(await busy.find({ type: 'Link' })).toBeDefined()
+  })
+
+  test('names no step, and shares the whole verse with the website', async ($, on) => {
+    const { copied } = world(on)
+    await turns($, 18)
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const busy = await $.ui.mount({ ...band(true), surface })
+      expect(await busy.find({ type: 'Text', text: /Recall it from the first letters/ })).toBeDefined()
+      expect(await busy.find({ type: 'Text', text: /· Recall ·/ })).toBeUndefined()
+      await busy.press({ key: 'share' })
+    }
+    expect(copied).toEqual([1, 2].map(() => `“${TEXT}” — ${VERSE.ref} (BSB)\n\nhttps://waitwithgod.com`))
   })
 })
 
@@ -216,7 +228,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.1', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.2', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)

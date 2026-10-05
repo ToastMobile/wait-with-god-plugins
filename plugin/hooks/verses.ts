@@ -66,9 +66,16 @@ export function nextVerse(ref: string, mastered: readonly string[]): PlanVerse {
   return upcoming.find(v => !mastered.includes(v.ref)) ?? upcoming[0]!
 }
 
+export const SITE = 'https://waitwithgod.com'
+
 /** The verse as it is copied: whole, never blanked. */
 export function quoted(ref: string, text: string): string {
   return `“${text}” — ${ref} (BSB)`
+}
+
+/** The verse as it is shared: whole, with the website, as one message. */
+export function shared(ref: string, text: string): string {
+  return `${quoted(ref, text)}\n\n${SITE}`
 }
 
 /** When a hide runs out: an hour from now, or the start of tomorrow (local time). */
