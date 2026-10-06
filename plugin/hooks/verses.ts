@@ -1,6 +1,6 @@
 import type { WaitStage, WaitStats } from '../types'
 
-/** One verse a day, cycling. Short, well-known memory verses. */
+/** One verse a day, cycling through 90. Short, well-known memory verses that every version numbers alike. */
 export const PLAN: ReadonlyArray<readonly [book: string, name: string, chapter: number, verse: number]> = [
   ['ROM', 'Romans', 8, 28],
   ['JHN', 'John', 3, 16],
@@ -33,9 +33,99 @@ export const PLAN: ReadonlyArray<readonly [book: string, name: string, chapter: 
   ['PSA', 'Psalm', 23, 1],
   ['JER', 'Jeremiah', 29, 11],
   ['MAT', 'Matthew', 5, 16],
+  ['PRO', 'Proverbs', 3, 5],
+  ['ROM', 'Romans', 6, 23],
+  ['PSA', 'Psalm', 27, 1],
+  ['EPH', 'Ephesians', 2, 8],
+  ['DEU', 'Deuteronomy', 31, 6],
+  ['JHN', 'John', 1, 1],
+  ['PSA', 'Psalm', 139, 14],
+  ['2CO', '2 Corinthians', 12, 9],
+  ['ISA', 'Isaiah', 53, 5],
+  ['MAT', 'Matthew', 7, 7],
+  ['PSA', 'Psalm', 51, 10],
+  ['PHP', 'Philippians', 1, 6],
+  ['GEN', 'Genesis', 1, 1],
+  ['JHN', 'John', 14, 27],
+  ['PSA', 'Psalm', 34, 8],
+  ['HEB', 'Hebrews', 4, 12],
+  ['PRO', 'Proverbs', 16, 3],
+  ['1CO', '1 Corinthians', 13, 4],
+  ['ISA', 'Isaiah', 43, 2],
+  ['JHN', 'John', 16, 33],
+  ['PSA', 'Psalm', 91, 1],
+  ['ROM', 'Romans', 10, 9],
+  ['ZEP', 'Zephaniah', 3, 17],
+  ['MAT', 'Matthew', 6, 34],
+  ['PSA', 'Psalm', 56, 3],
+  ['2TI', '2 Timothy', 3, 16],
+  ['NUM', 'Numbers', 6, 24],
+  ['JHN', 'John', 15, 5],
+  ['PSA', 'Psalm', 103, 12],
+  ['GAL', 'Galatians', 6, 9],
+  ['JER', 'Jeremiah', 33, 3],
+  ['1JN', '1 John', 4, 19],
+  ['PSA', 'Psalm', 121, 2],
+  ['EPH', 'Ephesians', 4, 32],
+  ['ISA', 'Isaiah', 55, 8],
+  ['MAT', 'Matthew', 22, 37],
+  ['PSA', 'Psalm', 19, 14],
+  ['COL', 'Colossians', 3, 23],
+  ['NAM', 'Nahum', 1, 7],
+  ['JHN', 'John', 8, 32],
+  ['PSA', 'Psalm', 55, 22],
+  ['1CO', '1 Corinthians', 10, 13],
+  ['ECC', 'Ecclesiastes', 3, 1],
+  ['ROM', 'Romans', 15, 13],
+  ['PSA', 'Psalm', 16, 11],
+  ['JAS', 'James', 4, 8],
+  ['ISA', 'Isaiah', 9, 6],
+  ['LUK', 'Luke', 1, 37],
+  ['PSA', 'Psalm', 30, 5],
+  ['1TH', '1 Thessalonians', 5, 18],
+  ['PRO', 'Proverbs', 16, 9],
+  ['JHN', 'John', 10, 10],
+  ['PSA', 'Psalm', 147, 3],
+  ['EPH', 'Ephesians', 6, 10],
+  ['ISA', 'Isaiah', 40, 29],
+  ['MRK', 'Mark', 10, 45],
+  ['PSA', 'Psalm', 90, 12],
+  ['REV', 'Revelation', 21, 4],
+  ['PHP', 'Philippians', 4, 19],
 ]
 
-export const API = 'https://bible.helloao.org/api/BSB'
+/** YouVersion Platform Bibles; a version's passages are under its id. */
+export const API = 'https://api.youversion.com/v1/bibles'
+
+/** The YouVersion Platform app key, sent as X-YVP-App-Key. App keys aren't secrets; they're meant to ship in apps. */
+export const APP_KEY = 'NTVCOKh2HGM5lsah3PipHeda4HLKIAZr5ecXygaiGgkawuGD'
+
+/** A Bible version to read in: YouVersion's id, the abbreviation shown, its name, and the notice it asks for. */
+export type Version = { id: number; abbr: string; title: string; notice: string }
+
+/**
+ * The versions to pick from: a few of the most read that the app key reaches, the BSB first. The Mac app has the
+ * same list.
+ */
+export const VERSIONS: readonly Version[] = [
+  { id: 3034, abbr: 'BSB', title: 'Berean Standard Bible', notice: 'The Berean Standard Bible is in the public domain.' },
+  { id: 111, abbr: 'NIV', title: 'New International Version', notice: 'The Holy Bible, New International Version® NIV® Copyright © 1973, 1978, 1984, 2011 by Biblica, Inc.® Used by Permission of Biblica, Inc.® All rights reserved worldwide.' },
+  { id: 2692, abbr: 'NASB', title: 'New American Standard Bible', notice: 'New American Standard Bible® NASB® Copyright © 1960, 1971, 1977, 1995, 2020 by The Lockman Foundation, a Corporation Not for Profit, La Habra, CA. All Rights Reserved. www.lockman.org' },
+  { id: 1588, abbr: 'AMP', title: 'Amplified Bible', notice: 'Amplified® Bible Copyright © 2015 by The Lockman Foundation, La Habra, CA 90631. All rights reserved. www.lockman.org' },
+]
+
+/** The version a new reader starts with, and the one older saved verses are in. */
+export const BSB = 3034
+
+/** A version by id; the BSB for one that isn't in the list (or none). */
+export function versionOf(id: number | undefined): Version {
+  return VERSIONS.find(v => v.id === id) ?? VERSIONS.find(v => v.id === BSB)!
+}
+
+/** A version by its abbreviation, any case. */
+export function versionNamed(abbr: string): Version | undefined {
+  return VERSIONS.find(v => v.abbr.toLowerCase() === abbr.toLowerCase())
+}
 
 const DAY_MS = 86_400_000
 
@@ -46,12 +136,23 @@ export function dayKey(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-export type PlanVerse = { book: string; chapter: number; verse: number; ref: string; url: string }
+export type PlanVerse = { book: string; chapter: number; verse: number; ref: string }
 
 /** The plan entry at an index, wrapping around the plan. */
 function planVerse(index: number): PlanVerse {
   const [book, name, chapter, verse] = PLAN[((index % PLAN.length) + PLAN.length) % PLAN.length]!
-  return { book, chapter, verse, ref: `${name} ${chapter}:${verse}`, url: `${API}/${book}/${chapter}.json` }
+  return { book, chapter, verse, ref: `${name} ${chapter}:${verse}` }
+}
+
+/** The plan entry with a reference. */
+export function planFor(ref: string): PlanVerse | undefined {
+  const index = PLAN.findIndex((_, i) => planVerse(i).ref === ref)
+  return index < 0 ? undefined : planVerse(index)
+}
+
+/** Where a plan verse's passage is in a version. */
+export function passageUrl(plan: PlanVerse, bible: number): string {
+  return `${API}/${bible}/passages/${plan.book}.${plan.chapter}.${plan.verse}?format=html`
 }
 
 /** The plan entry for a day: everyone on the same day sees the same verse. */
@@ -68,14 +169,14 @@ export function nextVerse(ref: string, mastered: readonly string[]): PlanVerse {
 
 export const SITE = 'https://waitwithgod.com'
 
-/** The verse as it is copied: whole, never blanked. */
-export function quoted(ref: string, text: string): string {
-  return `“${text}” — ${ref} (BSB)`
+/** The verse as it is copied: whole, never blanked, with its version. */
+export function quoted(ref: string, text: string, abbr: string): string {
+  return `“${text}” — ${ref} (${abbr})`
 }
 
 /** The verse as it is shared: whole, with the website, as one message. */
-export function shared(ref: string, text: string): string {
-  return `${quoted(ref, text)}\n\n${SITE}`
+export function shared(ref: string, text: string, abbr: string): string {
+  return `${quoted(ref, text, abbr)}\n\n${SITE}`
 }
 
 /** When a hide runs out: an hour from now, or the start of tomorrow (local time). */
@@ -92,16 +193,25 @@ export function clockTime(ms: number): string {
   return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`
 }
 
-type Piece = string | { text?: string; lineBreak?: boolean; noteId?: number }
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' }
 
-/** Pulls one verse's plain text out of a helloao chapter JSON body. */
-export function verseText(body: string, verse: number): string | null {
-  const json = JSON.parse(body) as { chapter?: { content?: Array<{ type: string; number?: number; content?: Piece[] }> } }
-  const found = json.chapter?.content?.find(c => c.type === 'verse' && c.number === verse)
-  if (!found?.content) return null
-  const text = found.content
-    .map(p => (typeof p === 'string' ? p : p.text ?? (p.lineBreak ? ' ' : '')))
-    .join(' ')
+/**
+ * Pulls a verse's plain text out of a YouVersion passage body (format=html). It drops the verse numbers and a
+ * psalm's title, and puts the divine name in capitals (LORD) as Bibles print it, in small capitals; the text format
+ * loses both. The LSV marks its poetry lines with "||", which become spaces like every other version's line breaks.
+ */
+export function verseText(body: string): string | null {
+  const html = (JSON.parse(body) as { content?: string }).content
+  if (!html) return null
+  const text = html
+    .replace(/<div class="d">.*?<\/div>/gs, ' ')
+    .replace(/<span class="(?:yv-vlbl|va)">.*?<\/span>/g, '')
+    .replace(/<span class="(?:nd|sc)">(.*?)<\/span>/g, (_, name: string) => name.toUpperCase())
+    .replace(/<\/?div[^>]*>/g, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&#(x?)([\da-f]+);/gi, (_, hex: string, code: string) => String.fromCodePoint(parseInt(code, hex ? 16 : 10)))
+    .replace(/&(\w+);/g, (entity, name: string) => ENTITIES[name] ?? entity)
+    .replace(/\s\|\|\s/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   return text || null

@@ -2,8 +2,9 @@
 
 Turn AI waiting time into Scripture time.
 
-While Claude is working, a small band above the prompt shows today's verse (Berean Standard Bible,
-via the free bible.helloao.org API). Each wait hides a little more of it:
+While Claude is working, a small band above the prompt shows today's verse, from the YouVersion Platform. It starts
+in the Berean Standard Bible; click the version (BSB) to pick the NIV, NASB or AMP instead. Each wait hides a
+little more of it:
 
 | Looks today | Step   | What you see                          |
 | ----------- | ------ | ------------------------------------- |
@@ -14,7 +15,7 @@ via the free bible.helloao.org API). Each wait hides a little more of it:
 
 The band disappears the instant Claude needs you. Focus it (click, or ctrl+x tab) and press `r` to reveal or `g` for Got it.
 
-Everyone sees the same verse on the same day (a 31-verse cycle), the same as the
+Everyone sees the same verse on the same day (a 90-verse cycle), the same as the
 [Mac app](https://waitwithgod.com).
 
 ## Install
@@ -34,6 +35,7 @@ Your next Claude Code session has it.
 | `/wait`             | Today's verse and your totals: time redeemed today and all time, reviews, verses memorized, workday streak |
 | `/wait copy`        | Copies the whole verse, never the blanked one                        |
 | `/wait next`        | Switches today's verse to the next one you haven't memorized, from Read |
+| `/wait version`     | Picks a Bible version (the same as clicking it on the band); `/wait version niv` names one |
 | `/wait hide`        | Hides the band for an hour; `/wait hide today` for the rest of the day |
 | `/wait show`        | Shows it again                                                       |
 | `/wait reset`       | Restarts today's verse at Read                                       |
@@ -42,10 +44,10 @@ Your next Claude Code session has it.
 
 ## Privacy
 
-The plugin fetches the verse text from bible.helloao.org, once per verse. Once a day it sends waitwithgod.com an
-anonymous usage count: the plugin version, the day you installed it, your streak and verses memorized, and your looks
-and minutes on your last day with it. Nothing in it identifies you. Your stats stay in the plugin's own store under
-your Claude config directory.
+The plugin fetches the verse text from YouVersion (api.youversion.com), once per verse and version. Once a day it sends
+waitwithgod.com an anonymous usage count: the plugin version, the day you installed it, your streak and verses
+memorized, and your looks and minutes on your last day with it. Nothing in it identifies you. Your stats stay in the
+plugin's own store under your Claude config directory.
 
 ---
 

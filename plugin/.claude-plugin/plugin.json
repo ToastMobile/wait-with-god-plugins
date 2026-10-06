@@ -1,6 +1,6 @@
 {
   "name": "wait-with-god",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Turn AI waiting time into Scripture time: one BSB verse a day, shown while Claude works, a little more hidden each time.",
   "types": "./types/index.d.ts",
   "author": {

@@ -2,33 +2,58 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { clockTime, hideUntil, mask, nextVerse, stageFor, verseFor, verseText, workdayStreak } from './verses'
+import {
+  APP_KEY,
+  BSB,
+  clockTime,
+  hideUntil,
+  mask,
+  nextVerse,
+  passageUrl,
+  stageFor,
+  verseFor,
+  verseText,
+  workdayStreak,
+} from './verses'
 
 const NOON = Date.parse('2026-10-02T12:00:00Z')
 const VERSE = verseFor('2026-10-02')
 const TEXT = 'And we know that God works all things together for the good of those who love Him.'
-const CHAPTER = JSON.stringify({
-  chapter: { content: [{ type: 'verse', number: VERSE.verse, content: [TEXT, { noteId: 1 }] }] },
-})
+/** A YouVersion passage body (format=html) holding `html`. */
+const passage = (html: string) => JSON.stringify({ id: 'X', content: `<div>${html}</div>`, reference: 'X' })
+const PASSAGE = passage(`<div class="p"><span class="yv-v" v="28"></span><span class="yv-vlbl">28</span>${TEXT} </div>`)
 
-/** Any other chapter: every verse reads as its own reference. */
-const otherChapter = (url: string) =>
-  JSON.stringify({
-    chapter: { content: Array.from({ length: 180 }, (_, i) => ({ type: 'verse', number: i + 1, content: [`${url} ${i + 1}`] })) },
-  })
+/** Any other passage reads as its own URL. */
+const otherPassage = (url: string) => passage(`<div class="p">${url}</div>`)
 
-function world(on: On, store: Record<string, unknown> = {}, env: Record<string, string> = {}) {
+/** Versions whose passages the API fails to serve, for a test to set. */
+type Outage = { down: number[] }
+
+function world(on: On, store: Record<string, unknown> = {}, env: Record<string, string> = {}, outage: Outage = { down: [] }) {
   mock.store(on, store)
   mock.env(on, env)
   const clock = mock.clock(on, { now: NOON })
   const copied: string[] = []
   const posts: Record<string, unknown>[] = []
+  const fetched: string[] = []
+  const panes: string[] = []
   on('http.fetch', (_$, e) => {
     if (e.init?.method === 'POST') {
       posts.push(JSON.parse(e.init.body ?? '{}'))
       return { value: { status: 204, ok: true, headers: {}, text: '' } }
     }
-    return { value: { status: 200, ok: true, headers: {}, text: e.url === VERSE.url ? CHAPTER : otherChapter(e.url) } }
+    fetched.push(e.url)
+    if (e.init?.headers?.['x-yvp-app-key'] !== APP_KEY) return { value: { status: 401, ok: false, headers: {}, text: '' } }
+    if (outage.down.some(id => e.url.includes(`/bibles/${id}/`))) return { value: { status: 503, ok: false, headers: {}, text: '' } }
+    return { value: { status: 200, ok: true, headers: {}, text: e.url === passageUrl(VERSE, BSB) ? PASSAGE : otherPassage(e.url) } }
+  })
+  on('ui.open', (_$, e) => {
+    panes.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.close', (_$, e) => {
+    panes.splice(panes.indexOf(e.id), 1)
+    return { value: undefined }
   })
   on('ui.copy', (_$, e) => {
     copied.push(e.text)
@@ -43,7 +68,22 @@ function world(on: On, store: Record<string, unknown> = {}, env: Record<string, 
   on('turn.complete', () => ({ text: '' }))
   on('session.start', (_$, e) => ({ cwd: e.cwd }))
   on('command.register', (_$, e) => ({ value: { command: e.name } }))
-  return { clock, copied, posts }
+  return { clock, copied, posts, fetched, panes }
+}
+
+/** The version picker, as the engine asks for it once it is open. */
+const picker = {
+  plugin: 'wait-with-god',
+  component: 'Pane' as const,
+  requestId: 'version',
+  props: {
+    title: 'Bible version',
+    isFocused: true,
+    bodyColumns: 80,
+    placement: 'inline' as const,
+    scroll: { offset: 0, bodyRows: 20 },
+    view: {},
+  },
 }
 
 const band = (isWorking: boolean) => ({
@@ -73,12 +113,29 @@ async function waits($: Engine, clock: MockClock, n: number, ms = 20_000) {
 }
 
 describe('verses', () => {
-  test('parses helloao verse content, poetry included', () => {
-    const poem = JSON.stringify({
-      chapter: { content: [{ type: 'verse', number: 105, content: [{ text: 'Your word is a lamp to my feet', poem: 1 }, { text: 'and a light to my path.', poem: 2 }] }] },
-    })
-    expect(verseText(poem, 105)).toBe('Your word is a lamp to my feet and a light to my path.')
-    expect(verseText(CHAPTER, VERSE.verse)).toBe(TEXT)
+  test('parses YouVersion passages: poetry, the divine name in capitals, no psalm title', () => {
+    const psalm = passage(
+      '<div class="d"><span class="yv-v" v="1"></span><span class="yv-vlbl">1</span>A Psalm of David.</div>' +
+        '<div class="q1">The <span class="nd">Lord</span> is my shepherd;</div><div class="q2">I shall not want.</div>',
+    )
+    expect(verseText(psalm)).toBe('The LORD is my shepherd; I shall not want.')
+    expect(verseText(PASSAGE)).toBe(TEXT)
+    expect(verseText(passage(''))).toBeNull()
+  })
+
+  test('reads every version\'s markup: small capitals, entities, the LSV\'s line marks', () => {
+    // NASB and AMP set the divine name as L + small capitals; NIVUK sets all of it in them.
+    const nasb = passage('<div class="q"><span class="yv-vlbl">1</span>The L<span class="sc">ord</span> is my shepherd,</div><div class="q">I shall not want.</div>')
+    expect(verseText(nasb)).toBe('The LORD is my shepherd, I shall not want.')
+    expect(verseText(passage('<div class="q1">The name of the <span class="sc">Lord</span> is a fortified tower;</div>'))).toBe(
+      'The name of the LORD is a fortified tower;',
+    )
+    const words = passage('<div class="p"><span class="yv-vlbl">16</span> <span class="wj">“For God so</span> [greatly] <span class="wj">loved <span class="it">and</span> dearly prized the world</span></div>')
+    expect(verseText(words)).toBe('“For God so [greatly] loved and dearly prized the world')
+    expect(verseText(passage('<div class="p">Don&#39;t worry &amp; don&#x2019;t fear</div>'))).toBe('Don\'t worry & don’t fear')
+    expect(verseText(passage('<div class="p">But those expecting YHWH pass [to] power, || They raise up the pinion as eagles</div>'))).toBe(
+      'But those expecting YHWH pass [to] power, They raise up the pinion as eagles',
+    )
   })
 
   test('steps from Read to Check and hides more each step', () => {
@@ -106,7 +163,8 @@ describe('verses', () => {
     const after = (ref: string, mastered: string[] = []) => nextVerse(ref, mastered).ref
     expect(after('Romans 8:28')).toBe('John 3:16')
     expect(after('Romans 8:28', ['John 3:16', 'Psalm 118:24'])).toBe('Joshua 1:9')
-    expect(after('Matthew 5:16')).toBe('Romans 8:28')
+    expect(after('Matthew 5:16')).toBe('Proverbs 3:5')
+    expect(after('Philippians 4:19')).toBe('Romans 8:28')
   })
 
   test('hide runs an hour or to local midnight', () => {
@@ -225,12 +283,84 @@ describe('/wait', () => {
     expect(await wait($, 'next')).toContain(swapped.ref)
     await turns($, 1)
     const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
-    expect(await busy.find({ type: 'Text', text: new RegExp(`${swapped.ref}.*Read`) })).toBeDefined()
+    expect(await busy.find({ type: 'Text', text: new RegExp(swapped.ref) })).toBeDefined()
+    expect(await busy.find({ type: 'Text', text: /Read it slowly/ })).toBeDefined()
   })
 
   test('anything else shows the usage', async ($, on) => {
     world(on)
     expect(await wait($, 'nope')).toContain('/wait hide [today]')
+  })
+})
+
+describe('version', () => {
+  const niv = otherPassage(passageUrl(VERSE, 111))
+  const nivText = verseText(niv)!
+
+  test('the version in the band opens the picker, and a pick reads today\'s verse in it at the same step', async ($, on) => {
+    const { copied, panes } = world(on)
+    await turns($, 10)
+    const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
+    expect((await busy.find({ key: 'version' }))?.props.label).toBe('BSB')
+    await busy.press({ key: 'version' })
+    expect(panes).toEqual(['version'])
+
+    for (const surface of ['terminal', 'desktop'] as const) {
+      const pane = await $.ui.mount({ ...picker, surface })
+      expect((await pane.find({ key: 'version-3034' }))?.props.label).toStartWith('✓ BSB')
+      expect((await pane.find({ key: 'version-111' }))?.props.label).toStartWith('  NIV')
+      expect(await pane.find({ type: 'Text', text: /public domain/ })).toBeDefined()
+      await pane.unmount()
+    }
+    const pane = await $.ui.mount({ ...picker, surface: 'terminal' })
+    await pane.press({ key: 'version-111' })
+    expect(panes).toEqual([])
+
+    const after = await $.ui.mount({ ...band(true), surface: 'terminal' })
+    expect((await after.find({ key: 'version' }))?.props.label).toBe('NIV')
+    expect(await after.find({ type: 'Text', text: /Fill in the blanks/ })).toBeDefined()
+    expect(await wait($)).toContain('10 looks today')
+    expect(await wait($)).toContain('Biblica')
+    await wait($, 'copy')
+    expect(copied).toEqual([`“${nivText}” — ${VERSE.ref} (NIV)`])
+  })
+
+  test('/wait version names one, and the days after come in it', async ($, on) => {
+    const { clock, fetched } = world(on)
+    await turns($, 1)
+    expect(await wait($, 'version NASB')).toContain('New American Standard Bible (NASB)')
+    await clock.set(NOON + DAY)
+    await turns($, 1)
+    const tomorrow = verseFor('2026-10-03')
+    expect(await wait($)).toContain(`${tomorrow.ref} (NASB)`)
+    expect(fetched.at(-1)).toBe(passageUrl(tomorrow, 2692))
+  })
+
+  test('/wait version alone opens the picker, and an unknown name lists the versions', async ($, on) => {
+    const { panes } = world(on)
+    await turns($, 1)
+    expect(await wait($, 'version')).toContain('/wait version niv')
+    expect(panes).toEqual(['version'])
+    const list = await wait($, 'version kjv')
+    expect(list).toContain('no version called kjv')
+    expect(list).toContain('✓ BSB')
+    expect(list).toContain('NIV')
+  })
+
+  test('a version that can\'t be fetched leaves the verse as it was', async ($, on) => {
+    world(on, {}, {}, { down: [111] })
+    await turns($, 1)
+    expect(await wait($, 'version niv')).toContain("Couldn't reach")
+    expect(await wait($)).toContain(`${VERSE.ref} (BSB)`)
+    expect(await wait($)).toContain(TEXT)
+  })
+
+  test('a verse saved before versions is the BSB', async ($, on) => {
+    world(on, { today: { day: '2026-10-02', ref: VERSE.ref, text: TEXT, views: 3, isMastered: false } })
+    await turns($, 1)
+    const busy = await $.ui.mount({ ...band(true), surface: 'terminal' })
+    expect((await busy.find({ key: 'version' }))?.props.label).toBe('BSB')
+    expect(await wait($)).toContain('4 looks today')
   })
 })
 
@@ -240,7 +370,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.5', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.6', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)

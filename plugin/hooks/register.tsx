@@ -2,8 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { WaitStats, WaitToday } from '../types'
-import type { PlanVerse } from './verses'
+import type { PlanVerse, Version } from './verses'
 import {
+  APP_KEY,
+  BSB,
   clockTime,
   dayKey,
   emptyStats,
@@ -11,11 +13,16 @@ import {
   mask,
   minutes,
   nextVerse,
+  passageUrl,
+  planFor,
   quoted,
   shared,
   SITE,
   stageFor,
   verseFor,
+  versionNamed,
+  versionOf,
+  VERSIONS,
   verseText,
   workdayStreak,
 } from './verses'
@@ -29,8 +36,11 @@ const SHARE_LABEL = { copied: 'Copied', failed: "Couldn't copy" } as const
 
 const VERSLE = 'https://get.versle.app/p/waitwithgod'
 
+/** The version picker's pane. */
+const VERSION_PANE = 'version'
+
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.5'
+const VERSION = '0.3.6'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
@@ -44,6 +54,7 @@ const USAGE = [
   '/wait              today\'s verse and your totals',
   '/wait copy         copy the whole verse',
   '/wait next         switch to the next verse you haven\'t memorized',
+  '/wait version [v]  pick a Bible version, or name one: /wait version niv',
   '/wait hide [today] hide the band for an hour, or for the rest of today',
   '/wait show         show it again',
   '/wait reset        restart today\'s verse at Read',
@@ -59,29 +70,67 @@ async function saveToday($: EngineInterface, verse: WaitToday) {
   await update($, today, () => verse)
 }
 
-/** A plan verse's BSB text, fetched once and cached. */
-async function textFor($: EngineInterface, plan: PlanVerse): Promise<string | null> {
-  const cached = (await $.store.get(`text:${plan.ref}`)) as string | undefined
+/** A plan verse's text in a version, fetched once and cached. */
+async function textFor($: EngineInterface, plan: PlanVerse, bible: number): Promise<string | null> {
+  const key = `text:${bible}:${plan.ref}`
+  const cached = (await $.store.get(key)) as string | undefined
   if (cached) return cached
-  const res = await $.http.fetch(plan.url)
+  const res = await $.http.fetch(passageUrl(plan, bible), { headers: { 'x-yvp-app-key': APP_KEY, accept: 'application/json' } })
   if (!res.ok) return null
-  const text = verseText(res.text, plan.verse)
-  if (text) await $.store.set(`text:${plan.ref}`, text)
+  const text = verseText(res.text)
+  if (text) await $.store.set(key, text)
   return text
+}
+
+/** The version new verses are read in: the reader's pick, the BSB until they make one. */
+async function chosenVersion($: EngineInterface): Promise<Version> {
+  return versionOf((await $.store.get('bible')) as number | undefined)
 }
 
 /** Makes `plan` today's verse, starting from Read. */
 async function startVerse($: EngineInterface, day: string, plan: PlanVerse): Promise<WaitToday | null> {
-  const text = await textFor($, plan)
+  const bible = (await chosenVersion($)).id
+  const text = await textFor($, plan, bible)
   if (!text) return null
   const stats = await loadStats($)
-  const fresh: WaitToday = { day, ref: plan.ref, text, views: 0, isMastered: stats.mastered.includes(plan.ref) }
+  const fresh: WaitToday = { day, ref: plan.ref, text, bible, views: 0, isMastered: stats.mastered.includes(plan.ref) }
   await saveToday($, fresh)
   await update($, isRevealed, () => false)
   return fresh
 }
 
-/** Makes sure `today` holds today's verse, fetching the BSB text once per verse. */
+/** Switches to another version: today's verse now, at the step it's on, and every verse after it. */
+async function useVersion($: EngineInterface, bible: number): Promise<WaitToday | null> {
+  const verse = await ensureToday($)
+  const plan = verse && planFor(verse.ref)
+  if (!verse || !plan) return null
+  const text = await textFor($, plan, bible)
+  if (!text) return null
+  await $.store.set('bible', bible)
+  const switched: WaitToday = { ...verse, text, bible }
+  await saveToday($, switched)
+  return switched
+}
+
+/** Opens the version picker as a dialog; false where no pane can be drawn. */
+async function openVersions($: EngineInterface): Promise<boolean> {
+  const opened = await $.ui.open({
+    id: VERSION_PANE,
+    title: 'Bible version',
+    focus: true,
+    closeOnEscape: true,
+    holdToasts: true,
+    rows: VERSIONS.length + 4,
+  })
+  return opened.isPlaced
+}
+
+/** The versions as a list to read, the one in use checked. */
+function versionList(current: Version): string {
+  return VERSIONS.map(v => `${v.id === current.id ? '✓' : ' '} ${v.abbr.padEnd(9)} ${v.title}`).join('\n')
+}
+
+/** Makes sure `today` holds today's verse, fetching its text once per verse and version. */
 async function ensureToday($: EngineInterface): Promise<WaitToday | null> {
   const day = dayKey(await $.clock.now())
   const held = await read($, today)
@@ -178,7 +227,7 @@ export const register: Register = on => {
     await $.command.register({
       name: 'wait',
       description: "Today's verse and how much waiting you've redeemed",
-      argumentHint: '[copy | next | hide [today] | show | reset]',
+      argumentHint: '[copy | next | version [name] | hide [today] | show | reset]',
       immediate: true,
     })
     const until = (await $.store.get('hiddenUntil')) as number | null | undefined
@@ -257,7 +306,7 @@ export const register: Register = on => {
       case 'copy': {
         const verse = await ensureToday($)
         if (!verse) return offline
-        const text = quoted(verse.ref, verse.text)
+        const text = quoted(verse.ref, verse.text, versionOf(verse.bible).abbr)
         const copied = await $.ui.copy({ text })
         return { text: copied.isCopied ? `Copied ${verse.ref}.` : `Couldn't reach the clipboard. Here it is to copy:\n\n${text}` }
       }
@@ -268,6 +317,17 @@ export const register: Register = on => {
         const swapped = await startVerse($, verse.day, nextVerse(verse.ref, stats.mastered))
         if (!swapped) return offline
         return { text: `Today's verse is now ${swapped.ref}, starting from Read. Tomorrow goes back to the plan.` }
+      }
+      case 'version': {
+        const current = versionOf((await read($, today))?.bible ?? (await chosenVersion($)).id)
+        if (arg === '') {
+          if (await openVersions($)) return { text: 'Pick a Bible version in the picker, or name one: /wait version niv' }
+          return { text: `${versionList(current)}\n\nName one to switch: /wait version niv` }
+        }
+        const version = versionNamed(arg)
+        if (!version) return { text: `There's no version called ${arg} here. These are:\n\n${versionList(current)}` }
+        if (!(await useVersion($, version.id))) return offline
+        return { text: `Reading in the ${version.title} (${version.abbr}) from now on.` }
       }
       case 'hide': {
         if (arg !== '' && arg !== 'today' && arg !== 'hour' && arg !== '1h') return { text: USAGE }
@@ -293,14 +353,17 @@ export const register: Register = on => {
     const reviews = stats.reviews[verse.ref] ?? 0
     const streak = workdayStreak(stats.activeDays, verse.day)
     const until = await read($, hiddenUntil)
+    const version = versionOf(verse.bible)
     const lines = [
-      `${verse.ref} (BSB)`,
+      `${verse.ref} (${version.abbr})`,
       `"${verse.text}"`,
       '',
       `Step: ${stageFor(verse.views)} · ${verse.views} look${verse.views === 1 ? '' : 's'} today${verse.isMastered ? ' · mastered' : ''}`,
       `Today you redeemed ${minutes(todayMs)} of waiting and reviewed ${verse.ref} ${reviews} time${reviews === 1 ? '' : 's'}.`,
       `All time: ${minutes(stats.waitedMs)} redeemed · ${stats.mastered.length} verse${stats.mastered.length === 1 ? '' : 's'} memorized · ${streak}-workday streak.`,
       ...((await isHidden($)) && until !== null ? [`Hidden until ${clockTime(until)} · /wait show`] : []),
+      '',
+      version.notice,
     ]
     return { text: lines.join('\n') }
   })
@@ -317,13 +380,25 @@ export const register: Register = on => {
     const revealed = stage === 'Read' || (await read($, isRevealed))
     const shown = revealed ? verse.text : mask(verse.text, verse.views)
     const shareState = await read($, shareResult)
+    const version = versionOf(verse.bible)
 
     return (
       <Box flexDirection="column" width={e.props.bodyColumns}>
-        <Text dimColor>
-          <Link href={SITE}>Wait with God</Link> · {verse.ref} (BSB) ·{' '}
-          {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}
-        </Text>
+        <Box flexDirection="row">
+          <Text dimColor>
+            <Link href={SITE}>Wait with God</Link> · {verse.ref} (
+          </Text>
+          <Button
+            key="version"
+            label={version.abbr}
+            plain
+            dimColor
+            onPress={async () => {
+              if (!(await openVersions($))) $.ui.toast('Pick a Bible version with /wait version.')
+            }}
+          />
+          <Text dimColor>) · {revealed && stage !== 'Read' ? 'Revealed.' : HINT[stage]}</Text>
+        </Box>
         <Text wrap="wrap">
           {shown}
         </Text>
@@ -357,7 +432,7 @@ export const register: Register = on => {
               hotkey="s"
               dimColor={!shareState}
               onPress={async press => {
-                const copied = await $.ui.copy({ text: shared(verse.ref, verse.text), surface: press.surface })
+                const copied = await $.ui.copy({ text: shared(verse.ref, verse.text, version.abbr), surface: press.surface })
                 // The button says what happened for a moment, then goes back to Share.
                 await update($, shareResult, () => (copied.isCopied ? 'copied' : 'failed'))
                 $.clock.after(2_000, () => void update($, shareResult, () => null))
@@ -367,6 +442,42 @@ export const register: Register = on => {
           <Text>
             <Text dimColor>From </Text>
             <Link href={VERSLE}>Versle</Link>
+          </Text>
+        </Box>
+      </Box>
+    )
+  })
+
+  // The version picker: every version, the one in use checked and focused, and its notice under them.
+  on('ui.render', { component: 'Pane', requestId: VERSION_PANE }, async ($, e) => {
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const verse = await read($, today)
+    const current = verse ? versionOf(verse.bible) : await chosenVersion($)
+    const width = Math.max(...VERSIONS.map(v => v.abbr.length)) + 2
+
+    return (
+      <Box flexDirection="column" width={e.props.bodyColumns}>
+        {VERSIONS.map(v => (
+          <Button
+            key={`version-${v.id}`}
+            label={`${v.id === current.id ? '✓' : ' '} ${v.abbr.padEnd(width)}${v.title}`}
+            plain
+            dimColor={v.id !== current.id}
+            {...(v.id === current.id ? { autoFocus: true as const } : {})}
+            onPress={async () => {
+              const switched = await useVersion($, v.id).catch(() => null)
+              await $.ui.close({ id: VERSION_PANE })
+              $.ui.toast(
+                switched
+                  ? `Reading in the ${v.title} (${v.abbr}) from now on.`
+                  : "Couldn't reach the Bible API. The version didn't change.",
+              )
+            }}
+          />
+        ))}
+        <Box marginTop={1}>
+          <Text dimColor wrap="wrap">
+            {current.notice}
           </Text>
         </Box>
       </Box>

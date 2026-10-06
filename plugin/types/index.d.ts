@@ -4,8 +4,10 @@ export type WaitToday = {
   day: string
   /** Human reference, e.g. "Romans 8:28". */
   ref: string
-  /** BSB text of the verse. */
+  /** Text of the verse, in `bible`. */
   text: string
+  /** YouVersion id of the version `text` is in; older saved verses lack it and are the BSB. */
+  bible?: number
   /** Waits today that showed this verse (drives Read → Repeat → Recall → Check). */
   views: number
   /** Marked "Got it" in the Check stage. */
