@@ -370,7 +370,7 @@ describe('usage count', () => {
     await session($)
     await clock.advance(5_000)
     expect(posts).toEqual([
-      { e: 'install', client: 'plugin', v: '0.3.7', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
+      { e: 'install', client: 'plugin', v: '0.3.8', platform: 'terminal', app: 'claude-code', installed: '2026-10-02', day: '2026-10-02' },
     ])
 
     await waits($, clock, 3)

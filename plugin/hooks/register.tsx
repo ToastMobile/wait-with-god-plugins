@@ -40,7 +40,7 @@ const VERSLE = 'https://get.versle.app/p/waitwithgod'
 const VERSION_PANE = 'version'
 
 /** Must match .claude-plugin/plugin.json (release.sh checks). */
-const VERSION = '0.3.7'
+const VERSION = '0.3.8'
 const EVENTS = 'https://waitwithgod.com/a'
 
 const HINT = {
