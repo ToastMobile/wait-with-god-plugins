@@ -8,8 +8,9 @@
   "plugins": [
     {
       "name": "wait-with-god",
+      "displayName": "Wait with God",
       "source": "./plugin",
-      "description": "Turn AI waiting time into Scripture time: one BSB verse a day, shown while Claude works, a little more hidden each time."
+      "description": "One Bible verse a day above your prompt while Claude works, a little more hidden each wait until you know it by heart."
     }
   ]
 }

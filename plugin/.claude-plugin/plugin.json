@@ -1,7 +1,8 @@
 {
   "name": "wait-with-god",
-  "version": "0.3.6",
-  "description": "Turn AI waiting time into Scripture time: one BSB verse a day, shown while Claude works, a little more hidden each time.",
+  "displayName": "Wait with God",
+  "version": "0.3.7",
+  "description": "One Bible verse a day above your prompt while Claude works, a little more hidden each wait until you know it by heart.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "Toast Mobile",
